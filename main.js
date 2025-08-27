@@ -29,6 +29,37 @@ global.data = new Object({
   allThreads: null,
 });
 
+
+/**
+ * @Roles:
+ * - 0 = Everyone
+ * - 1 = Admin
+ * - 2 = Moderator
+ * - 3 = Bot Owner
+ *
+ * @param {string|number} senderID - sendeeID.
+ * @returns {0|1|2|3} role num.
+ */
+function getUserRole(senderID) {
+  const { botOwner, admin, moderator } = global.client.config;
+  const idStr = String(senderID);
+  const idNum = Number(senderID);
+  if (idStr === String(botOwner)) return 3;
+  if (
+    (Array.isArray(admin) && admin.includes(idStr)) ||
+    (Array.isArray(admin) && admin.includes(idNum))
+  ) {
+    return 1;
+  }
+  if (
+    (Array.isArray(moderator) && moderator.includes(idStr)) ||
+    (Array.isArray(moderator) && moderator.includes(idNum))
+  ) {
+    return 2;
+  }
+  return 0;
+}
+
 const handleCommand = async function ({
   message,
   fonts,
@@ -52,6 +83,10 @@ const handleCommand = async function ({
       message.reply(`My prefix is: ${botPrefix}`);
     } else if (event.body) {
       const cmdFile = commands.get(command.toLowerCase());
+      const userRole = getUserRole(event.senderID);
+      if (cmdFile.config.role > userRole) ;      
+        return message.reply("❌ You don't have permission to use this command.");
+     }
 
       if (cmdFile) {
         try {
