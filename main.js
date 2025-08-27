@@ -1,4 +1,33 @@
 const _ = require("lodash");
+const fs = require("fs-extra");
+const path = require("path");
+const express = require("express");
+const figlet = require("figlet");
+const chalk = require("chalk");
+const login = require("./includes/login");
+const log = require("./includes/log");
+const configPath = path.join(__dirname, "json", "config.json");
+const configData = fs.readFileSync(configPath);
+const config = JSON.parse(configData);
+const app = new express();
+const port = process.env.PORT || 3000;
+
+global.client = new Object({
+  startTime: new Date(),
+  config: config,
+  botPrefix: config.botPrefix,
+  botAdmins: config.botAdmins,
+  commands: new Map(),
+  events: new Map(),
+  replies: new Map(),
+  cooldowns: new Map(),
+  reactions: {},
+});
+
+global.data = new Object({
+  allUsers: null,
+  allThreads: null,
+});
 
 const handleCommand = async function ({
   message,
@@ -193,11 +222,11 @@ const handleReply = async function ({
   }
 };
 
-module.exports = async function ({ api, event }) {
+const listen = async function ({ api, event }) {
   const Users = require("./database/Users")({ api });
   const Threads = require("./database/Threads")({ api });
-  const fonts = require("./handle/createFonts");
-  const log = require("./log");
+  const fonts Fac = require("./handle/createFonts");
+  const log = require("./includes/log");
 
   global.data = {
     allUsers: Users.getAllUsers(),
@@ -234,14 +263,14 @@ module.exports = async function ({ api, event }) {
     edit: (msg, mid) => {
       return new Promise((res) => api.editMessage(msg, mid, () => res(true)));
     },
-    waitForReaction: (body, next = "") => {
+    waitForReaction: (body, ultimatemsg = "") => {
       return new Promise(async (resolve, reject) => {
         const i = await message.reply(body);
         reactions[i.messageID] = {
           resolve,
           reject,
           event: i,
-          next,
+          ultimatemsg,
           author: event.senderID,
         };
         console.log(`New pending reaction at: `, i, reactions);
@@ -256,7 +285,7 @@ module.exports = async function ({ api, event }) {
       reject,
       event: i,
       author,
-      next,
+      ultimatemsg,
     } = reactions[event.messageID];
     try {
       if (author === event.userID) {
@@ -264,8 +293,8 @@ module.exports = async function ({ api, event }) {
           `${event.reaction} Resolved Reaction at ${event.messageID}`,
         );
         delete reactions[event.messageID];
-        if (next) {
-          message.edit(next, i.messageID);
+        if (ultimatemsg) {
+          message.edit(ultimatemsg, i.messageID);
         }
 
         resolve?.(event);
@@ -323,3 +352,57 @@ module.exports = async function ({ api, event }) {
       break;
   }
 };
+
+async function start() {
+  app.use(express.static("./includes/web"));
+  app.listen(port);
+  
+  const appState = fs.readJSONSync(
+    path.join(__dirname, "json", "cookies.json"),
+  );
+  const utils = require("./utils");
+  global.utils = utils;
+
+  figlet.text("KurtV2", (err, data) => {
+    if (err) return log.error(err);
+
+    utils.loadAll();
+    console.log(chalk.cyan(data));
+    console.log(chalk.blue(`› Bot Name: ${config.botName}`));
+    console.log(chalk.blue(`› Bot Owner: ${config.botOwner}`));
+    console.log(chalk.blue(`› Time: ${new Date().toLocaleString()}`));
+    console.log(chalk.blue(`› Enkidu is running at: ${port}`));
+    console.log();
+
+    app.get("/", (req, res) => {
+      res.send("Online!");
+    });
+
+    app.listen(port);
+
+    login(
+      {
+        appState,
+      },
+      (err, api) => {
+        if (err) return log.error(err);
+
+        fs.writeFileSync(
+          "./json/cookies.json",
+          JSON.stringify(api.getAppState()),
+        );
+        api.setOptions(config.fcaOptions);
+
+        api.listen(async (err, event) => {
+          if (err) return log.error(err);
+          listen({ api, event });
+        });
+      },
+    );
+  });
+}
+
+process.on("unhandledRejection", (error) => console.log(error));
+process.on("uncaughtException", (error) => console.log(error));
+
+start();
