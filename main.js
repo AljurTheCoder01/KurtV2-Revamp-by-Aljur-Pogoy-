@@ -36,7 +36,6 @@ global.data = new Object({
  * - 1 = Admin
  * - 2 = Moderator
  * - 3 = Bot Owner
- *
  * @param {string|number} senderID - sendeeID.
  * @returns {0|1|2|3} role num.
  */
