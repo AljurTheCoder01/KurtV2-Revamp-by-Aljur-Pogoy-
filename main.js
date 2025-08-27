@@ -72,23 +72,32 @@ const handleCommand = async function ({
   const { botPrefix, botAdmins, commands, cooldowns } = global.client;
 
   try {
-    if (!event.body) return; // fixed the mf bug - Liane
+    if (!event.body) return;
     let [command, ...args] = event.body?.trim().split(" ");
 
+    let usePrefix = false;
     if (command.startsWith(botPrefix)) {
       command = command.slice(botPrefix.length);
+      usePrefix = true;
     }
 
-    if (event.body.toLowerCase() === "prefix") {
-      message.reply(`My prefix is: ${botPrefix}`);
-    } else if (event.body) {
-      const cmdFile = commands.get(command.toLowerCase());
-      const userRole = getUserRole(event.senderID);
-      if (cmdFile.config.role > userRole) ;      
-        return message.reply("❌ You don't have permission to use this command.");
-     }
+    if (event.body) {
+      let cmdFile = commands.get(command.toLowerCase());
+
+      if (!cmdFile) {
+        cmdFile = [...commands.values()].find(
+          (cmd) =>
+            cmd.config.hasPrefix === false &&
+            event.body.toLowerCase().startsWith(cmd.config.name.toLowerCase())
+        );
+      }
 
       if (cmdFile) {
+        const userRole = getUserRole(event.senderID);
+        if (cmdFile.config.role > userRole) {
+          return message.reply("❌ You don't have permission to use this command.");
+        }
+
         try {
           if (cmdFile.config.role === 1) {
             if (!_.includes(botAdmins, Number(event.senderID))) {
@@ -112,9 +121,7 @@ const handleCommand = async function ({
 
           cooldowns[cooldownKey] = now + cooldownTime * 1000;
 
-          const usePrefix = cmdFile.config.usePrefix !== false;
-
-          if (usePrefix && !event.body.toLowerCase().startsWith(botPrefix)) {
+          if (cmdFile.config.hasPrefix && !usePrefix) {
             return;
           }
 
